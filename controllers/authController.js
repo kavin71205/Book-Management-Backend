@@ -1,19 +1,23 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-
-const users = require("../users");
+const User = require("../models/User");
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
-  const user = users.find(u => u.email === email);
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(400).json({ message: "Invalid credentials" });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
     return res.status(400).json({ message: "Invalid credentials" });
   }
 
   const token = jwt.sign(
-    { userId: user.id },
-    process.env.JWT_SECRET || "secretkey",
+    { userId: user._id },
+    process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 
@@ -23,20 +27,17 @@ exports.login = async (req, res) => {
 exports.signup = async (req, res) => {
   const { email, password } = req.body;
 
-  const existingUser = users.find(u => u.email === email);
+  const existingUser = await User.findOne({ email });
   if (existingUser) {
     return res.status(400).json({ message: "User already exists" });
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const newUser = {
-    id: Date.now(),
+  await User.create({
     email,
     password: hashedPassword
-  };
-
-  users.push(newUser);
+  });
 
   res.json({ message: "Signup successful" });
 };
